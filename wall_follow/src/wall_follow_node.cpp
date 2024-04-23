@@ -10,6 +10,8 @@ public:
     WallFollow() : Node("wall_follow_node")
     {
         // TODO: create ROS subscribers and publishers
+        laser_subscription_ = this->create_subscription<sensor_msgs::msg::LaserScan>("scan", 1, std::bind(&WallFollow::scan_callback, this, std::placeholders::_1));
+        ackermann_publisher_ = this->create_publisher<ackermann_msgs::msg::AckermannDriveStamped>("drive",1);
     }
 
 private:
@@ -26,8 +28,10 @@ private:
     std::string lidarscan_topic = "/scan";
     std::string drive_topic = "/drive";
     /// TODO: create ROS subscribers and publishers
+    rclcpp::Subscription<sensor_msgs::msg::LaserScan>::SharedPtr laser_subscription_;
+    rclcpp::Publisher<ackermann_msgs::msg::AckermannDriveStamped>::SharedPtr ackermann_publisher_;
 
-    double get_range(float* range_data, double angle)
+    double get_range(std::vector<float>* range_data, double angle)
     {
         /*
         Simple helper to return the corresponding range measurement at a given angle. Make sure you take care of NaNs and infs.
@@ -41,7 +45,19 @@ private:
         */
 
         // TODO: implement
-        return 0.0;
+        int index = angle * 4;
+        if(std::isinf((*range_data)[index]))
+        {
+            RCLCPP_INFO(this->get_logger(), "OUT OF RANGE, INF VALUE IN SCAN DATA");
+            return 30.0;
+        }
+        else if(std::isnan((*range_data)[index]))
+        {
+            RCLCPP_INFO(this->get_logger(), "RANGE DATA CORRUPTED, FOUND NAN IN SCAN DATA");
+            return 30.0;
+        }
+
+        return (*range_data)[index];
     }
 
     double get_error(float* range_data, double dist)
@@ -93,7 +109,13 @@ private:
         double error = 0.0; // TODO: replace with error calculated by get_error()
         double velocity = 0.0; // TODO: calculate desired car velocity based on error
         // TODO: actuate the car with PID
+        auto range_data = scan_msg->ranges;
+        float incr_ang = scan_msg->angle_increment;
+        float min_ang = scan_msg->angle_min;
 
+        double range = get_range(&range_data,90);
+        RCLCPP_INFO(this->get_logger(), "Range for 90 ");
+        RCLCPP_INFO(this->get_logger(), "'%f'",range);
     }
 
 };
